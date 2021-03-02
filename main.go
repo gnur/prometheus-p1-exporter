@@ -103,17 +103,9 @@ func main() {
 
 func listener(source io.Reader) {
 	var line string
-	file, err := os.Create("/tmp/dsmr.txt")
-	if err != nil {
-		fmt.Println("Failed to open file")
-		os.Exit(1)
-	}
-
-	defer file.Close()
 
 	for {
 		rawLine, err := reader.ReadBytes('\x0a')
-		file.Write(rawLine)
 		if err != nil {
 			fmt.Println(err)
 			return
