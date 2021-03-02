@@ -42,19 +42,9 @@ var (
 			return powerTariff2Meter
 		},
 	)
-	gasMeter = prometheus.NewCounterFunc(
-		prometheus.CounterOpts{
-			Name: "gas_meter_cm2",
-			Help: "Gas meter reading in cm2",
-		},
-		func() float64 {
-			return gasTotalMeter
-		},
-	)
 
 	powerTariff1Meter float64
 	powerTariff2Meter float64
-	gasTotalMeter     float64
 )
 
 func main() {
@@ -105,7 +95,6 @@ func main() {
 	registry.MustRegister(powerDraw)
 	registry.MustRegister(powerTariff1)
 	registry.MustRegister(powerTariff2)
-	registry.MustRegister(gasMeter)
 
 	fmt.Println("now serving metrics")
 	http.Handle(*metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
@@ -144,13 +133,6 @@ func listener(source io.Reader) {
 				continue
 			}
 			powerTariff2Meter = tmpVal * 1000
-		} else if strings.HasPrefix(line, "0-1:24.2.1") {
-			tmpVal, err := strconv.ParseFloat(line[26:35], 64)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			gasTotalMeter = tmpVal * 100 * 100 * 100 // m3 to cm3
 		} else if strings.HasPrefix(line, "1-0:1.7.0") {
 			tmpVal, err := strconv.ParseFloat(line[10:16], 64)
 			if err != nil {
