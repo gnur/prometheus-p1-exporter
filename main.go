@@ -78,7 +78,7 @@ func main() {
 
 	if *serialPort != "" {
 		fmt.Println("gonna use serial device")
-		config := &serial.Config{Name: os.Getenv("SERIAL_DEVICE"), Baud: 115200}
+		config := &serial.Config{Name: *serialPort, Baud: 115200}
 
 		usb, err := serial.OpenPort(config)
 		if err != nil {
