@@ -3,17 +3,17 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/tarm/serial"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/tarm/serial"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
@@ -57,16 +57,26 @@ var (
 	gasTotalMeter     float64
 )
 
-func init() {
-	// Metrics have to be registered to be exposed:
-	prometheus.MustRegister(powerDraw)
-	prometheus.MustRegister(powerTariff1)
-	prometheus.MustRegister(powerTariff2)
-	prometheus.MustRegister(gasMeter)
-}
-
 func main() {
-	if os.Getenv("SERIAL_DEVICE") != "" {
+	var (
+		listenAddress = kingpin.Flag(
+			"web.listen-address",
+			"Address on which to expose metrics and web interface.",
+		).Default(":9602").String()
+		metricsPath = kingpin.Flag(
+			"web.telemetry-path",
+			"Path under which to expose metrics.",
+		).Default("/metrics").String()
+		serialPort = kingpin.Flag(
+			"serial.port",
+			"Serial port for the connection to the P1 interface.",
+		).Required().String()
+	)
+
+	kingpin.HelpFlag.Short('h')
+	kingpin.Parse()
+
+	if *serialPort != "" {
 		fmt.Println("gonna use serial device")
 		config := &serial.Config{Name: os.Getenv("SERIAL_DEVICE"), Baud: 115200}
 
@@ -90,19 +100,31 @@ func main() {
 
 	go listener(reader)
 
-	// sleeping 10 seconds to prevent uninitialized scrapes
-	time.Sleep(10 * time.Second)
+	registry := prometheus.NewRegistry()
+
+	registry.MustRegister(powerDraw)
+	registry.MustRegister(powerTariff1)
+	registry.MustRegister(powerTariff2)
+	registry.MustRegister(gasMeter)
 
 	fmt.Println("now serving metrics")
-	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(":9222", nil))
-
+	http.Handle(*metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
 
 func listener(source io.Reader) {
 	var line string
+	file, err := os.Create("/tmp/dsmr.txt")
+	if err != nil {
+		fmt.Println("Failed to open file")
+		os.Exit(1)
+	}
+
+	defer file.Close()
+
 	for {
 		rawLine, err := reader.ReadBytes('\x0a')
+		file.Write(rawLine)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -136,9 +158,6 @@ func listener(source io.Reader) {
 				continue
 			}
 			powerDraw.Set(tmpVal * 1000)
-		}
-		if os.Getenv("SERIAL_DEVICE") == "" {
-			time.Sleep(200 * time.Millisecond)
 		}
 	}
 }
