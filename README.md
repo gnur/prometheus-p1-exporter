@@ -2,10 +2,19 @@
 
 The prometheus p1 exporter is a simple (by design and purpose) binary that can read data from a smart meter through a serial port and expose these metrics to be scraped by prometheus.
 
-## configuration
+## usage/configuration
 
-The only things that can be configured with an environment var is:
- - **SERIAL_DEVICE**: the device that needs to be read (usually something like /dev/ttyUSB0)
+```
+usage: prometheus-p1-exporter --serial.port=SERIAL.PORT [<flags>]
+
+Flags:
+  -h, --help                     Show context-sensitive help (also try --help-long and --help-man).
+      --web.listen-address=":9602"  
+                                 Address on which to expose metrics and web interface.
+      --web.telemetry-path="/metrics"  
+                                 Path under which to expose metrics.
+      --serial.port=SERIAL.PORT  Serial port for the connection to the P1 interface.
+```
 
 
 ## limitations
@@ -17,14 +26,12 @@ For now, only a few fields are exported:
 - power used in tariff 1 in Wh
 - power used in tariff 2 in Wh
 - current power draw in W
-- gas used in cm2, updated hourly
 
 These values come from the following oids:
 
 - 1-0:1.8.1 (meter reading, tariff 1 in kWh)
 - 1-0:2.8.2 (meter reading, tariff 2 in kWh)
 - 1-0:1.7.0 (Actual power delivered in kW)
-- 0-1:24.2.1 (gas meter reading, includes timestamp of reading)
 
 ## sources and acknowledgements
 
