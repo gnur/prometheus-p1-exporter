@@ -18,30 +18,22 @@ import (
 
 var (
 	reader    *bufio.Reader
-	powerDraw = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "power_draw_watts",
-		Help: "Current power draw in Watts",
-	})
+	powerDraw = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "power_draw_watts",
+			Help: "Current power draw in Watts",
+		},
+		[]string{"type"}, //type should either be delivered or received
+	)
 
-	powerTariff1 = prometheus.NewCounterFunc(
-		prometheus.CounterOpts{
-			Name: "power_meter_tariff1_watthours",
-			Help: "power meter tariff1 reading in Watthours",
+	powerMeter = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "power_meter_watthours",
+			Help: "power meter reading in Watthours",
 		},
-		func() float64 {
-			fmt.Println("reading powerTariff1Meter")
-			return powerTariff1Meter
-		},
+		[]string{"type", "tariff"}, //type is either delivered or received, tariff is either high or low
 	)
-	powerTariff2 = prometheus.NewCounterFunc(
-		prometheus.CounterOpts{
-			Name: "power_meter_tariff2_watthours",
-			Help: "power meter tariff2 reading in Watthours",
-		},
-		func() float64 {
-			return powerTariff2Meter
-		},
-	)
+
 	gasMeter = prometheus.NewCounterFunc(
 		prometheus.CounterOpts{
 			Name: "gas_meter_cm2",
@@ -52,17 +44,15 @@ var (
 		},
 	)
 
-	powerTariff1Meter float64
-	powerTariff2Meter float64
-	gasTotalMeter     float64
+	gasTotalMeter float64
 )
 
 func init() {
 	// Metrics have to be registered to be exposed:
 	prometheus.MustRegister(powerDraw)
-	prometheus.MustRegister(powerTariff1)
-	prometheus.MustRegister(powerTariff2)
+	prometheus.MustRegister(powerMeter)
 	prometheus.MustRegister(gasMeter)
+
 }
 
 func main() {
@@ -114,14 +104,30 @@ func listener(source io.Reader) {
 				fmt.Println(err)
 				continue
 			}
-			powerTariff1Meter = tmpVal * 1000
+			powerMeter.WithLabelValues("low", "received").Set(tmpVal * 1000)
 		} else if strings.HasPrefix(line, "1-0:1.8.2") {
 			tmpVal, err := strconv.ParseFloat(line[10:20], 64)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			powerTariff2Meter = tmpVal * 1000
+			powerMeter.WithLabelValues("high", "received").Set(tmpVal * 1000)
+
+		} else if strings.HasPrefix(line, "1-0:2.8.1") {
+			tmpVal, err := strconv.ParseFloat(line[10:20], 64)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			powerMeter.WithLabelValues("low", "delivered").Set(tmpVal * 1000)
+		} else if strings.HasPrefix(line, "1-0:2.8.2") {
+			tmpVal, err := strconv.ParseFloat(line[10:20], 64)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			powerMeter.WithLabelValues("high", "delivered").Set(tmpVal * 1000)
+
 		} else if strings.HasPrefix(line, "0-1:24.2.1") {
 			tmpVal, err := strconv.ParseFloat(line[26:35], 64)
 			if err != nil {
@@ -135,7 +141,14 @@ func listener(source io.Reader) {
 				fmt.Println(err)
 				continue
 			}
-			powerDraw.Set(tmpVal * 1000)
+			powerDraw.WithLabelValues("received").Set(tmpVal * 1000)
+		} else if strings.HasPrefix(line, "1-0:2.7.0") {
+			tmpVal, err := strconv.ParseFloat(line[10:16], 64)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			powerDraw.WithLabelValues("delivered").Set(tmpVal * 1000)
 		}
 		if os.Getenv("SERIAL_DEVICE") == "" {
 			time.Sleep(200 * time.Millisecond)
